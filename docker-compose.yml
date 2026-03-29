@@ -1,35 +1,25 @@
-version: '3'
-
+version: '3.8'
 services:
   backend:
-    image: your-backend-image
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - '5000:5000'
-    volumes:
-      - ./backend:/app
+    build: ./backend
+    ports: ["8001:8001"]
     environment:
-      - MONGODB_URI=mongodb://mongo:27017/db_name
-
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=ai_video_generator
+    depends_on: [mongo]
+  
   frontend:
-    image: your-frontend-image
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - '3000:3000'
-    volumes:
-      - ./frontend:/app
-
+    build: ./frontend
+    ports: ["3000:3000"]
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8001
+    depends_on: [backend]
+  
   mongo:
-    image: mongo
-    ports:
-      - '27017:27017'
-    volumes:
-      - mongo_data:/data/db
+    image: mongo:7.0
+    ports: ["27017:27017"]
+    volumes: [mongo_data:/data/db]
 
 volumes:
   mongo_data:
-
+  
