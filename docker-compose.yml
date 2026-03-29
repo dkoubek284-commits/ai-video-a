@@ -1,25 +1,61 @@
 version: '3.8'
+
 services:
   backend:
-    build: ./backend
-    ports: ["8001:8001"]
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
     environment:
       - MONGO_URL=mongodb://mongo:27017
       - DB_NAME=ai_video_generator
-    depends_on: [mongo]
-  
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - NODE_ENV=development
+      - DEBUG=true
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    networks:
+      - app-network
+    
   frontend:
-    build: ./frontend
-    ports: ["3000:3000"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
     environment:
       - REACT_APP_BACKEND_URL=http://localhost:8001
-    depends_on: [backend]
-  
+      - REACT_APP_ENV=development
+      - REACT_APP_DEBUG=true
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+    
   mongo:
     image: mongo:7.0
-    ports: ["27017:27017"]
-    volumes: [mongo_data:/data/db]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ai_video_generator
+    networks:
+      - app-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mongo_data:
-  
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
