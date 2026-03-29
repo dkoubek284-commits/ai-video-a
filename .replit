@@ -1,0 +1,6 @@
+# Replit configuration file for AI Video A
+
+# This is the configuration file for deploying AI Video A on Replit.
+
+language = "python"
+run = "python main.py"
