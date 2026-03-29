@@ -1,0 +1,16 @@
+# Optimized Production Dependencies
+
+# Web Frameworks
+Flask==2.0.3
+
+# Database Libraries
+SQLAlchemy==1.4.22
+
+# Caching
+redis==4.0.2
+
+# Asynchronous Tasks
+celery==5.1.2
+
+# Others
+requests==2.26.0
