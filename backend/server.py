@@ -13,26 +13,38 @@ from datetime import datetime
 import shutil
 import asyncio
 import random
-from api_runway import router as runway_router
+
+# Robustní import routeru (funguje při spuštění z backend/ i z repo root)
+try:
+    from backend.api.api_runway import router as runway_router
+except ImportError:
+    try:
+        from api_runway import router as runway_router
+    except ImportError:
+        runway_router = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+# MongoDB connection (očekává MONGO_URL a DB_NAME v .env)
+mongo_url = os.environ.get('MONGO_URL')
+if not mongo_url:
+    raise RuntimeError("MONGO_URL not set in environment")
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db_name = os.environ.get('DB_NAME', 'ai_video_generator')
+db = client[db_name]
 
 # Create the main app without a prefix
 app = FastAPI()
-app.include_router(runway_router, prefix="/api/runway")
+if runway_router is not None:
+    app.include_router(runway_router, prefix="/api/runway")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
 # Create uploads directory
 uploads_dir = ROOT_DIR / "uploads"
-uploads_dir.mkdir(exist_ok=True)
+uploads_dir.mkdir(parents=True, exist_ok=True)
 
 # Models
 class VideoGenerationRequest(BaseModel):
@@ -65,82 +77,58 @@ class UserGallery(BaseModel):
 # Sample video URLs and thumbnails for different styles
 SAMPLE_VIDEOS = {
     "realistic": [
-        {
-            "video_url": "https://images.pexels.com/photos/11262264/pexels-photo-11262264.jpeg",
-            "thumbnail_url": "https://images.pexels.com/photos/11262264/pexels-photo-11262264.jpeg"
-        },
-        {
-            "video_url": "https://images.pexels.com/photos/7480538/pexels-photo-7480538.jpeg",
-            "thumbnail_url": "https://images.pexels.com/photos/7480538/pexels-photo-7480538.jpeg"
-        }
+        {"video_url": "https://images.pexels.com/photos/11262264/pexels-photo-11262264.jpeg",
+         "thumbnail_url": "https://images.pexels.com/photos/11262264/pexels-photo-11262264.jpeg"},
+        {"video_url": "https://images.pexels.com/photos/7480538/pexels-photo-7480538.jpeg",
+         "thumbnail_url": "https://images.pexels.com/photos/7480538/pexels-photo-7480538.jpeg"}
     ],
     "anime": [
-        {
-            "video_url": "https://images.pexels.com/photos/18069362/pexels-photo-18069362.png",
-            "thumbnail_url": "https://images.pexels.com/photos/18069362/pexels-photo-18069362.png"
-        }
+        {"video_url": "https://images.pexels.com/photos/18069362/pexels-photo-18069362.png",
+         "thumbnail_url": "https://images.pexels.com/photos/18069362/pexels-photo-18069362.png"}
     ],
     "cartoon": [
-        {
-            "video_url": "https://images.unsplash.com/photo-1733590555923-2aa0e489300e",
-            "thumbnail_url": "https://images.unsplash.com/photo-1733590555923-2aa0e489300e"
-        }
+        {"video_url": "https://images.unsplash.com/photo-1733590555923-2aa0e489300e",
+         "thumbnail_url": "https://images.unsplash.com/photo-1733590555923-2aa0e489300e"}
     ],
     "surreal": [
-        {
-            "video_url": "https://images.pexels.com/photos/24182512/pexels-photo-24182512.jpeg",
-            "thumbnail_url": "https://images.pexels.com/photos/24182512/pexels-photo-24182512.jpeg"
-        }
+        {"video_url": "https://images.pexels.com/photos/24182512/pexels-photo-24182512.jpeg",
+         "thumbnail_url": "https://images.pexels.com/photos/24182512/pexels-photo-24182512.jpeg"}
     ],
     "talking_image": [
-        {
-            "video_url": "https://images.unsplash.com/photo-1717632464005-1f33909e484b",
-            "thumbnail_url": "https://images.unsplash.com/photo-1717632464005-1f33909e484b"
-        }
+        {"video_url": "https://images.unsplash.com/photo-1717632464005-1f33909e484b",
+         "thumbnail_url": "https://images.unsplash.com/photo-1717632464005-1f33909e484b"}
     ],
     "character_animation": [
-        {
-            "video_url": "https://images.pexels.com/photos/17722043/pexels-photo-17722043.jpeg",
-            "thumbnail_url": "https://images.pexels.com/photos/17722043/pexels-photo-17722043.jpeg"
-        }
+        {"video_url": "https://images.pexels.com/photos/17722043/pexels-photo-17722043.jpeg",
+         "thumbnail_url": "https://images.pexels.com/photos/17722043/pexels-photo-17722043.jpeg"}
     ],
     "movement_overlay": [
-        {
-            "video_url": "https://images.pexels.com/photos/32539017/pexels-photo-32539017.jpeg",
-            "thumbnail_url": "https://images.pexels.com/photos/32539017/pexels-photo-32539017.jpeg"
-        }
+        {"video_url": "https://images.pexels.com/photos/32539017/pexels-photo-32539017.jpeg",
+         "thumbnail_url": "https://images.pexels.com/photos/32539017/pexels-photo-32539017.jpeg"}
     ],
     "talking_face": [
-        {
-            "video_url": "https://images.unsplash.com/photo-1483478550801-ceba5fe50e8e",
-            "thumbnail_url": "https://images.unsplash.com/photo-1483478550801-ceba5fe50e8e"
-        }
+        {"video_url": "https://images.unsplash.com/photo-1483478550801-ceba5fe50e8e",
+         "thumbnail_url": "https://images.unsplash.com/photo-1483478550801-ceba5fe50e8e"}
     ]
 }
 
 async def simulate_video_generation(video_id: str, style: str):
     """Simulate video generation process"""
     await asyncio.sleep(3)  # Simulate processing time
-    
-    # Update video status to completed with sample content
     sample_content = random.choice(SAMPLE_VIDEOS.get(style, SAMPLE_VIDEOS["realistic"]))
-    
     await db.videos.update_one(
         {"id": video_id},
-        {
-            "$set": {
-                "status": "completed",
-                "video_url": sample_content["video_url"],
-                "thumbnail_url": sample_content["thumbnail_url"]
-            }
-        }
+        {"$set": {
+            "status": "completed",
+            "video_url": sample_content["video_url"],
+            "thumbnail_url": sample_content["thumbnail_url"]
+        }}
     )
 
 @api_router.post("/generate-text-to-video", response_model=VideoResponse)
 async def generate_text_to_video(request: VideoGenerationRequest):
     """Generate video from text prompt"""
     video_id = str(uuid.uuid4())
-    
     video_data = {
         "id": video_id,
         "prompt": request.prompt,
@@ -150,13 +138,8 @@ async def generate_text_to_video(request: VideoGenerationRequest):
         "created_at": datetime.utcnow(),
         "nsfw_enabled": request.nsfw_enabled
     }
-    
-    # Save to database
     await db.videos.insert_one(video_data)
-    
-    # Start background video generation
     asyncio.create_task(simulate_video_generation(video_id, request.style))
-    
     return VideoResponse(**video_data)
 
 @api_router.post("/generate-image-to-video")
@@ -169,17 +152,12 @@ async def generate_image_to_video(
     """Generate video from uploaded image"""
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
-    
     video_id = str(uuid.uuid4())
-    
-    # Save uploaded file
     file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
     filename = f"{video_id}.{file_extension}"
     file_path = uploads_dir / filename
-    
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
     video_data = {
         "id": video_id,
         "image_filename": filename,
@@ -189,13 +167,8 @@ async def generate_image_to_video(
         "created_at": datetime.utcnow(),
         "nsfw_enabled": nsfw_enabled
     }
-    
-    # Save to database
     await db.videos.insert_one(video_data)
-    
-    # Start background video generation
     asyncio.create_task(simulate_video_generation(video_id, style))
-    
     return VideoResponse(**video_data)
 
 @api_router.get("/video/{video_id}", response_model=VideoResponse)
@@ -204,7 +177,6 @@ async def get_video(video_id: str):
     video = await db.videos.find_one({"id": video_id})
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
-    
     return VideoResponse(**video)
 
 @api_router.get("/videos", response_model=UserGallery)
@@ -212,9 +184,7 @@ async def get_user_videos(limit: int = 20, offset: int = 0):
     """Get user's video gallery"""
     videos = await db.videos.find().skip(offset).limit(limit).sort("created_at", -1).to_list(limit)
     total_count = await db.videos.count_documents({})
-    
     video_responses = [VideoResponse(**video) for video in videos]
-    
     return UserGallery(videos=video_responses, total_count=total_count)
 
 @api_router.get("/styles")
@@ -253,6 +223,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Graceful shutdown
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# Allow running via `python server.py` in backend/ for dev convenience
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=True, log_level="info")
