@@ -1,31 +1,41 @@
-# backend/api_runway.py
-
-import requests
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
+import httpx
 
-load_dotenv()  # Load variables from .env file
+load_dotenv()
 
 RUNWAY_API_KEY = os.getenv("RUNWAY_API_KEY")
 
-def generate_video(prompt, image_url=None):
-    url = "https://api.runwayml.com/v1/generate"
+router = APIRouter()
 
+class RunwayGenerateRequest(BaseModel):
+    prompt: str
+    image_url: str | None = None
+
+@router.post("/generate", response_model=dict)
+async def generate(req: RunwayGenerateRequest):
+    """Proxy endpoint to RunwayML (example).
+    Returns the Runway API response or raises HTTPException on error.
+    """
+    if not RUNWAY_API_KEY:
+        raise HTTPException(status_code=500, detail="Runway API key not configured")
+
+    url = "https://api.runwayml.com/v1/generate"
     headers = {
         "Authorization": f"Bearer {RUNWAY_API_KEY}",
         "Content-Type": "application/json"
     }
+    payload = {"prompt": req.prompt}
+    if req.image_url:
+        payload["image_url"] = req.image_url
 
-    payload = {
-        "prompt": prompt
-    }
+    timeout = httpx.Timeout(30.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(url, headers=headers, json=payload)
 
-    if image_url:
-        payload["image_url"] = image_url
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Runway error: {resp.text}")
 
-    response = requests.post(url, headers=headers, json=payload)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise Exception(f"Runway API error: {response.text}")
+    return resp.json()
