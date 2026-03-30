@@ -1,6 +1,11 @@
-# Replit configuration file for AI Video A
+run = "cd backend && python server.py & cd frontend && npm start"
 
-# This is the configuration file for deploying AI Video A on Replit.
+[env]
+PYTHONUNBUFFERED = "1"
 
-language = "python"
-run = "python main.py"
+[nix]
+channel = "stable-23_11"
+packages = [
+    "python311",
+    "nodejs_20"
+]
